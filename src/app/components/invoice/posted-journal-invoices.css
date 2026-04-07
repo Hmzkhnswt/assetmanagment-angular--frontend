@@ -1,0 +1,8 @@
+.container-fluid {
+  padding: 0 1rem;
+}
+
+.form-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}

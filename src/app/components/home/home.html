@@ -1,0 +1,23 @@
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card card-primary card-outline">
+        <div class="card-header">
+          <h3 class="card-title mb-0">Dashboard</h3>
+        </div>
+        <div class="card-body">
+          <p class="mb-2">Welcome to Asset Management Dashboard.</p>
+          <small class="text-muted d-block mb-3">Use the sidebar to open Invoices and Asset Balances.</small>
+
+          <div class="alert alert-secondary py-2 mb-0" *ngIf="healthStatus === 'idle'">Checking API health…</div>
+          <div class="alert alert-success py-2 mb-0" *ngIf="healthStatus === 'ok'">
+            <strong>Health:</strong> {{ healthMessage }}
+          </div>
+          <div class="alert alert-warning py-2 mb-0" *ngIf="healthStatus === 'error'">
+            <strong>Health:</strong> {{ healthMessage }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

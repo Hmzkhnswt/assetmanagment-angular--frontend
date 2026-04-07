@@ -1,0 +1,117 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="mb-0">Posted Journal Invoices</h3>
+    <button type="button" class="btn btn-outline-secondary btn-sm" (click)="backToInvoiceEntry()">Back to invoice entry</button>
+  </div>
+
+  <div class="alert alert-danger py-2" *ngIf="accountsError">{{ accountsError }}</div>
+  <div class="alert alert-danger py-2" *ngIf="employeesError">{{ employeesError }}</div>
+  <div class="alert alert-danger py-2" *ngIf="listError">{{ listError }}</div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div *ngIf="isLoadingList" class="text-muted small">Loading posted invoices...</div>
+      <div class="table-responsive" *ngIf="!isLoadingList && journalInvoices.length > 0">
+        <table class="table table-sm table-bordered mb-0">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Date</th>
+              <th>Employee</th>
+              <th>Description</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let inv of journalInvoices">
+              <td>{{ inv.reference }}</td>
+              <td>{{ inv.entryDate }}</td>
+              <td>{{ inv.employeeName ?? '-' }}</td>
+              <td>{{ inv.description }}</td>
+              <td class="text-end">
+                <button type="button" class="btn btn-link btn-sm px-0" (click)="openEditor(inv)">Edit</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="!isLoadingList && journalInvoices.length === 0" class="text-muted small">No posted journal invoices found.</div>
+    </div>
+  </div>
+
+  <div class="card" *ngIf="isEditing">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Edit {{ selectedInvoice?.reference || 'invoice' }}</strong>
+      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="closeEditor()">Close</button>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-danger py-2" *ngIf="detailError">{{ detailError }}</div>
+      <div *ngIf="isLoadingDetail" class="text-muted small">Loading invoice details...</div>
+
+      <form *ngIf="!isLoadingDetail" [formGroup]="editForm" (ngSubmit)="save()">
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-control" formControlName="date" />
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Description</label>
+            <input type="text" class="form-control" formControlName="description" />
+          </div>
+        </div>
+
+        <div formArrayName="entries" class="table-responsive">
+          <table class="table table-bordered table-striped">
+            <thead>
+              <tr>
+                <th>From Account (asset)</th>
+                <th>Reason Account (expense)</th>
+                <th>Amount</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <ng-container *ngFor="let entry of entries.controls; let i = index">
+                <tr [formGroupName]="i">
+                  <td>
+                    <select class="form-control" formControlName="fromAccountId">
+                      <option value="">Select asset account</option>
+                      <option *ngFor="let account of assetAccounts" [value]="account.id">{{ account.name }}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-control" formControlName="reasonAccountId">
+                      <option value="">Select expense account</option>
+                      <option *ngFor="let account of expenseAccounts" [value]="account.id">{{ account.name }}</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input type="number" class="form-control text-right" formControlName="amount" min="0.01" step="0.01" />
+                  </td>
+                  <td>
+                    <button type="button" class="btn btn-danger btn-sm" (click)="removeEntry(i)">Remove</button>
+                  </td>
+                </tr>
+                <tr *ngIf="entry.errors?.['sameAccount'] && (entry.dirty || entry.touched)">
+                  <td colspan="4" class="text-danger small py-1">Row {{ i + 1 }}: From and Reason accounts must be different.</td>
+                </tr>
+              </ng-container>
+            </tbody>
+          </table>
+        </div>
+
+        <button type="button" class="btn btn-success btn-sm mb-3" (click)="addEntry()">
+          <i class="fas fa-plus me-1"></i>Add Entry
+        </button>
+
+        <div class="alert alert-danger py-2" *ngIf="submitError">{{ submitError }}</div>
+        <div class="d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-outline-secondary" (click)="closeEditor()">Cancel</button>
+          <button type="submit" class="btn btn-primary" [disabled]="isUpdating">
+            {{ isUpdating ? 'Saving...' : 'Save changes' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

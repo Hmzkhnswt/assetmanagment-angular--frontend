@@ -1,0 +1,63 @@
+<aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
+  <div class="sidebar-brand">
+    <a routerLink="/home" class="brand-link">
+      <span class="brand-text fw-light">Asset Manager</span>
+    </a>
+  </div>
+
+  <div class="sidebar-wrapper">
+    <nav class="mt-2">
+      <ul
+        class="nav sidebar-menu flex-column"
+        data-lte-toggle="treeview"
+        role="navigation"
+        aria-label="Main navigation"
+        data-accordion="false"
+      >
+        <li class="nav-item">
+          <a routerLink="/home" routerLinkActive="active" class="nav-link">
+            <i class="nav-icon fas fa-tachometer-alt"></i>
+            <p>Dashboard</p>
+          </a>
+        </li>
+
+        <li class="nav-item" [class.menu-open]="isPaymentsOpen">
+          <a href="#" class="nav-link" (click)="togglePayments(); $event.preventDefault()">
+            <i class="nav-icon fas fa-wallet"></i>
+            <p>
+              Payments
+              <i class="nav-arrow fas fa-angle-right"></i>
+            </p>
+          </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a routerLink="/payments/invoices" routerLinkActive="active" class="nav-link">
+                <i class="nav-icon far fa-circle"></i>
+                <p>Invoices</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a routerLink="/payments/assets-balances" routerLinkActive="active" class="nav-link">
+                <i class="nav-icon far fa-circle"></i>
+                <p>Assets Balances</p>
+              </a>
+            </li>
+          </ul>
+        </li>
+
+        <li class="nav-item">
+          <a href="#" class="nav-link" (click)="$event.preventDefault()">
+            <i class="nav-icon fas fa-receipt"></i>
+            <p>Receipts</p>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#" class="nav-link" (click)="$event.preventDefault()">
+            <i class="nav-icon fas fa-chart-line"></i>
+            <p>Reports</p>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</aside>

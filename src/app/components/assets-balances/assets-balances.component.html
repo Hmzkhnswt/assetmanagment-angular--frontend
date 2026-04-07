@@ -1,0 +1,105 @@
+<div class="container-fluid" [formGroup]="filterForm">
+  <div class="card card-primary card-outline">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <h3 class="card-title mb-0">Assets Balances</h3>
+      <span class="small text-muted" *ngIf="isLoadingEmployees">Loading employees…</span>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <!-- <label>Employee (<code>userId</code> = external id)</label> -->
+          <select class="form-control" formControlName="userId" (change)="loadData()">
+            <option value="">— Select employee —</option>
+            <option *ngFor="let e of employees" [value]="e.userId">{{ e.fullName }} ({{ e.userId }})</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="button" class="btn btn-outline-secondary mb-1 mr-2" (click)="loadEmployees()" [disabled]="isLoadingEmployees">
+            Reload employees
+          </button>
+          <button type="button" class="btn btn-primary mb-1" (click)="loadData()" [disabled]="isLoading">
+            {{ isLoading ? 'Loading…' : 'Refresh' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="alert alert-danger py-2 mt-2" *ngIf="errorMessage">{{ errorMessage }}</div>
+
+      <div class="mt-3 d-flex flex-wrap gap-2 align-items-center" *ngIf="summaryEntries().length > 0">
+        <span class="text-muted small mr-2">Totals by type</span>
+        <!-- <span class="badge text-bg-secondary" *ngFor="let s of summaryEntries()">{{ s.key }}: {{ s.value | number:'1.2-2' }}</span> -->
+      </div>
+      <div class="text-muted small mt-2" *ngIf="summaryEntries().length === 0 && !isLoading && filterForm.get('userId')?.value">
+        No summary-by-type data (or empty response).
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header py-2"><strong>Transactions</strong></div>
+        <div class="card-body py-2">
+          <div class="table-responsive" *ngIf="recentTransactions.length > 0; else noTransactions">
+            <table class="table table-sm table-bordered mb-0">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Reference</th>
+                  <th>Account</th>
+                  <th class="text-end">Debit</th>
+                  <th class="text-end">Credit</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let transaction of recentTransactions">
+                  <td>{{ displayTxDate(transaction) }}</td>
+                  <td>{{ transaction.reference ?? '—' }}</td>
+                  <td>{{ displayTxAccount(transaction) }}</td>
+                  <td class="text-end">{{ transaction.debit != null ? (transaction.debit | number:'1.2-2') : '—' }}</td>
+                  <td class="text-end">{{ transaction.credit != null ? (transaction.credit | number:'1.2-2') : '—' }}</td>
+                  <td>{{ transaction.description ?? '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noTransactions>
+            <div class="text-muted small">
+              {{ isLoading ? 'Loading…' : 'No transaction lines for this employee.' }}
+            </div>
+          </ng-template>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header py-2"><strong>Account balances</strong></div>
+        <div class="card-body py-2">
+          <div class="table-responsive" *ngIf="balances.length > 0; else noBalances">
+            <table class="table table-sm table-bordered mb-0">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Type</th>
+                  <th class="text-end">Balance</th>
+                  <th class="text-end">Debits</th>
+                  <th class="text-end">Credits</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let balance of balances">
+                  <td>{{ accountDisplayName(balance) }}</td>
+                  <td>{{ accountTypeLabel(balance) }}</td>
+                  <td class="text-end">{{ accountBalance(balance) | number:'1.2-2' }}</td>
+                  <td class="text-end">{{ accountDebitTotal(balance) | number:'1.2-2' }}</td>
+                  <td class="text-end">{{ accountCreditTotal(balance) | number:'1.2-2' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-template #noBalances>
+            <div class="text-muted small">
+              {{ isLoading ? 'Loading…' : 'No account balance rows for this employee.' }}
+            </div>
+          </ng-template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
