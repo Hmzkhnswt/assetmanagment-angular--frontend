@@ -1,6 +1,18 @@
-.summary-pre {
-  background: #f8fafc;
-  border: 1px solid #dbe3ee;
-  border-radius: 6px;
-  padding: 8px;
+.container-fluid {
+  padding: 0 1rem;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Ensure info-box icons render at proper size */
+.info-box-icon {
+  font-size: 1.4rem;
+}
+
+/* Subtle balance colouring */
+td.text-end strong {
+  font-size: 0.9rem;
 }

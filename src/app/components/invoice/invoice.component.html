@@ -1,200 +1,226 @@
-<div
-  class="toast-container position-fixed top-0 end-0 p-3"
-  style="z-index: 1090"
-  aria-live="polite"
-  aria-atomic="true"
->
+<!-- ─── Toast Notification ──────────────────────────────────────────────────── -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1090;" aria-live="polite" aria-atomic="true">
   <div
-    class="toast align-items-center border-0"
-    [class.text-bg-success]="toastVisible && !toastIsError"
-    [class.text-bg-danger]="toastVisible && toastIsError"
-    [class.show]="toastVisible"
+    class="toast border-0 align-items-center show"
+    [class.text-bg-success]="!toastIsError"
+    [class.text-bg-danger]="toastIsError"
     role="status"
+    *ngIf="toastVisible"
   >
     <div class="d-flex">
-      <div class="toast-body">{{ toastMessage }}</div>
+      <div class="toast-body fw-semibold">
+        <i class="fas me-2" [class.fa-check-circle]="!toastIsError" [class.fa-exclamation-circle]="toastIsError"></i>
+        {{ toastMessage }}
+      </div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="Close" (click)="dismissToast()"></button>
     </div>
   </div>
 </div>
 
-<div class="container-fluid" [formGroup]="invoiceForm">
+<!-- ─── Main Card ──────────────────────────────────────────────────────────── -->
+<div class="container-fluid">
   <div class="card card-primary card-outline">
-    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <h3 class="card-title mb-0">Invoice Journal Entry</h3>
-      <div
-        class="d-flex align-items-center gap-2 small text-muted"
-        role="status"
-        *ngIf="isLoadingAccounts || isLoadingEmployees"
-        aria-live="polite"
-      >
-        <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
-        <span>
-          <ng-container *ngIf="isLoadingAccounts && isLoadingEmployees">Loading accounts & employees…</ng-container>
-          <!-- <ng-container *ngIf="isLoadingAccounts && !isLoadingEmployees">Loading accounts…</ng-container>
-          <ng-container *ngIf="!isLoadingAccounts && isLoadingEmployees">Loading employees…</ng-container> -->
+
+    <!-- Card Header -->
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-file-invoice me-2"></i>Journal Invoice Entry
+      </h3>
+      <div class="card-tools d-flex align-items-center gap-2">
+        <span class="text-muted small" *ngIf="isLoadingData">
+          <span class="spinner-border spinner-border-sm text-primary me-1" aria-hidden="true"></span>
+          Loading data…
         </span>
       </div>
     </div>
 
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-4">
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" class="form-control" formControlName="date" />
-          </div>
+    <!-- Loading Overlay -->
+    <div class="overlay d-flex align-items-center justify-content-center" *ngIf="isLoadingData">
+      <i class="fas fa-sync-alt fa-spin fa-2x text-primary"></i>
+    </div>
+
+    <!-- Card Body -->
+    <div class="card-body" [formGroup]="invoiceForm">
+
+      <!-- Alerts -->
+      <div class="alert alert-danger d-flex align-items-center gap-2" *ngIf="accountsError" role="alert">
+        <i class="fas fa-times-circle flex-shrink-0"></i>
+        <span>{{ accountsError }}</span>
+      </div>
+      <div class="alert alert-danger d-flex align-items-center gap-2" *ngIf="employeesError" role="alert">
+        <i class="fas fa-times-circle flex-shrink-0"></i>
+        <span>{{ employeesError }}</span>
+      </div>
+      <div class="alert alert-danger d-flex align-items-center gap-2" *ngIf="submitError" role="alert">
+        <i class="fas fa-exclamation-triangle flex-shrink-0"></i>
+        <span>{{ submitError }}</span>
+      </div>
+
+      <!-- Date & Payee -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">
+            Date <span class="text-danger">*</span>
+          </label>
+          <input type="date" class="form-control" formControlName="date" />
         </div>
-        <div class="col-md-8">
-          <div class="form-group">
-            <label>Payee (employee)</label>
-            <select class="form-control" formControlName="payeeUserId">
-              <option value="">Select Employee or Other Expenses</option>
-              <option *ngFor="let e of employees" [value]="e.userId">
-                {{ e.fullName }}
-              </option>
-            </select>
-            <small class="text-muted d-block mt-1">
-              <!-- <code>userId</code> is the employee external id used for asset balance filters. -->
-            </small>
+        <div class="col-md-9">
+          <label class="form-label fw-semibold">Payee / Employee</label>
+          <select class="form-select" formControlName="payeeUserId">
+            <option value="">— Select Employee or leave blank for Other Expenses —</option>
+            <option *ngFor="let e of employees" [value]="e.userId">{{ e.fullName }}</option>
+          </select>
+          <div class="form-text" *ngIf="employees.length === 0 && !isLoadingData">
+            <i class="fas fa-info-circle me-1"></i>
+            No employees loaded.
+            <a href="#" (click)="$event.preventDefault(); loadData()" class="text-decoration-none">Retry</a>
           </div>
         </div>
       </div>
 
-      <!-- <div class="row">
-        <div class="col-md-4">
-          <div class="form-group">
-            <label>Or payee full name</label>
-            <input type="text" class="form-control" formControlName="manualFullName" placeholder="Must match employee full name (case-insensitive)" autocomplete="off" />
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="form-group">
-            <label>Or first name</label>
-            <input type="text" class="form-control" formControlName="manualFirstName" placeholder="With last name below" autocomplete="given-name" />
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="form-group">
-            <label>Or last name</label>
-            <input type="text" class="form-control" formControlName="manualLastName" autocomplete="family-name" />
-          </div>
-        </div>
-      </div> -->
-
-      <div class="alert alert-danger py-2" *ngIf="accountsError">{{ accountsError }}</div>
-      <div class="alert alert-danger py-2" *ngIf="employeesError">{{ employeesError }}</div>
-      <div class="alert alert-danger py-2" *ngIf="submitError">{{ submitError }}</div>
-      
-
-      <div class="table-responsive mt-2" formArrayName="entries">
-        <table class="table table-bordered table-striped">
-          <thead>
+      <!-- Journal Entries Table -->
+      <div class="table-responsive mb-2" formArrayName="entries">
+        <table class="table table-bordered table-hover align-middle mb-0">
+          <thead class="table-light">
             <tr>
-              <th class="help-header">
-                From
-                <span class="header-help" tabindex="0" aria-label="From means credited account">
-                  <i class="fas fa-info-circle"></i>
-                  <span class="header-tooltip">Asset account paid from (credited)</span>
-                </span>
+              <th>
+                From Account
+                <span class="badge bg-secondary fw-normal ms-1" style="font-size: 0.72rem;">Asset — credited</span>
               </th>
-              <th class="help-header">
-                Reason
-                <span class="header-help" tabindex="0" aria-label="Reason means debited account">
-                  <i class="fas fa-info-circle"></i>
-                  <span class="header-tooltip">Expense reason (debited)</span>
-                </span>
+              <th>
+                Reason Account
+                <span class="badge bg-secondary fw-normal ms-1" style="font-size: 0.72rem;">Expense — debited</span>
               </th>
-              <th class="amount-col">Amount</th>
-              <th class="action-col">Action</th>
+              <th style="width: 155px;">Amount</th>
+              <th style="width: 65px;"></th>
             </tr>
           </thead>
           <tbody>
             <ng-container *ngFor="let entry of entries.controls; let i = index">
               <tr [formGroupName]="i">
                 <td>
-                  <select class="form-control" formControlName="fromAccountId">
+                  <select class="form-select form-select-sm" formControlName="fromAccountId">
                     <option value="">Select asset account</option>
-                    <option *ngFor="let account of assetAccounts" [value]="account.id">{{ account.name }}</option>
+                    <option *ngFor="let a of assetAccounts" [value]="a.id">{{ a.name }}</option>
                   </select>
                 </td>
                 <td>
-                  <select class="form-control" formControlName="reasonAccountId">
+                  <select class="form-select form-select-sm" formControlName="reasonAccountId">
                     <option value="">Select expense account</option>
-                    <option *ngFor="let account of expenseAccounts" [value]="account.id">{{ account.name }}</option>
+                    <option *ngFor="let a of expenseAccounts" [value]="a.id">{{ a.name }}</option>
                   </select>
                 </td>
                 <td>
                   <input
                     type="number"
-                    class="form-control text-right"
+                    class="form-control form-control-sm text-end"
                     formControlName="amount"
                     min="0.01"
                     step="0.01"
                     placeholder="0.00"
                   />
                 </td>
-                <td>
-                  <button type="button" class="btn btn-danger btn-sm" (click)="removeEntry(i)">Remove</button>
+                <td class="text-center">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    (click)="removeEntry(i)"
+                    [disabled]="entries.length === 1"
+                    title="Remove row"
+                  >
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
                 </td>
               </tr>
               <tr *ngIf="entry.errors?.['sameAccount'] && (entry.dirty || entry.touched)">
-                <td colspan="4" class="text-danger small py-1">Row {{ i + 1 }}: From and Reason accounts must be different.</td>
+                <td colspan="4" class="py-1 px-3 bg-danger bg-opacity-10">
+                  <small class="text-danger">
+                    <i class="fas fa-exclamation-circle me-1"></i>
+                    Row {{ i + 1 }}: "From" and "Reason" accounts must be different.
+                  </small>
+                </td>
               </tr>
             </ng-container>
           </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="4" class="py-2">
+                <button type="button" class="btn btn-sm btn-outline-success" (click)="addEntry()">
+                  <i class="fas fa-plus me-1"></i>Add Entry Row
+                </button>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
 
-      <button type="button" class="btn btn-success mb-3" (click)="addEntry()">
-        <i class="fas fa-plus mr-1"></i> Add Entry
-      </button>
-
-      <div class="row">
-        <div class="col-md-6">
-          <div class="form-group">
-            <label>Description</label>
-            <textarea
-              rows="4"
-              class="form-control"
-              placeholder="Description for the whole journal (e.g. Salary run)"
-              formControlName="description"
-            ></textarea>
-          </div>
+      <!-- Description & Summary -->
+      <div class="row g-3 mt-1 align-items-start">
+        <div class="col-lg-7">
+          <label class="form-label fw-semibold">
+            Description <span class="text-danger">*</span>
+          </label>
+          <textarea
+            class="form-control"
+            rows="4"
+            formControlName="description"
+            placeholder="e.g. Monthly salary run — April 2026"
+          ></textarea>
         </div>
-        <div class="col-md-6 d-flex align-items-end justify-content-md-end">
-          <div class="summary-box">
-            <div><strong>Total credit (Asset):</strong> {{ totalAmount | number:'1.2-2' }}</div>
-            <div><strong>Total debit (Expense):</strong> {{ totalAmount | number:'1.2-2' }}</div>
-            <div class="text-success font-weight-bold" *ngIf="isBalanced">Balanced (Cr = Dr)</div>
+        <div class="col-lg-5">
+          <div class="callout callout-info mb-0">
+            <h6 class="mb-3 fw-semibold text-info">
+              <i class="fas fa-calculator me-2"></i>Journal Summary
+            </h6>
+            <div class="d-flex justify-content-between mb-1">
+              <span class="text-muted small">Total Credit (Asset):</span>
+              <strong>{{ totalAmount | number:'1.2-2' }}</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-3">
+              <span class="text-muted small">Total Debit (Expense):</span>
+              <strong>{{ totalAmount | number:'1.2-2' }}</strong>
+            </div>
+            <span class="badge bg-success fs-6 px-3 py-2" *ngIf="isBalanced">
+              <i class="fas fa-check-circle me-1"></i>Balanced (Cr = Dr)
+            </span>
+            <span class="badge bg-warning text-dark fs-6 px-3 py-2" *ngIf="!isBalanced">
+              <i class="fas fa-exclamation me-1"></i>No entries yet
+            </span>
           </div>
         </div>
       </div>
 
-      <div class="card mt-4">
-        <div class="card-header py-2">
-          <div class="d-flex w-100 align-items-center justify-content-between flex-wrap gap-2">
-            <strong class="mb-0">Posted Journal Invoices</strong>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-primary"
-              (click)="openPostedInvoicesPage()"
-            >
-              View posted invoices
-            </button>
-          </div>
-        </div>
-        <div class="card-body py-3">
-          <div class="text-muted small">Open a dedicated screen to view or edit full journal invoice details.</div>
+    </div><!-- /card-body -->
+
+    <!-- Card Footer -->
+    <div class="card-footer">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <button
+          type="button"
+          class="btn btn-outline-secondary"
+          (click)="loadData()"
+          [disabled]="isLoadingData"
+        >
+          <i class="fas fa-sync-alt me-1" [class.fa-spin]="isLoadingData"></i>
+          {{ isLoadingData ? 'Loading…' : 'Reload Data' }}
+        </button>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-info" (click)="openPostedInvoicesPage()">
+            <i class="fas fa-list-alt me-1"></i>View Posted Invoices
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="onSubmit()"
+            [disabled]="isSubmitting || isLoadingData"
+          >
+            <span class="spinner-border spinner-border-sm me-1" *ngIf="isSubmitting" aria-hidden="true"></span>
+            {{ isSubmitting ? 'Saving…' : 'Save Journal Entry' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="card-footer d-flex justify-content-end align-items-center gap-2">
-      <button class="btn btn-secondary" type="button" (click)="reloadAccounts()" [disabled]="isLoadingAccounts">Reload accounts</button>
-      <button class="btn btn-primary" type="button" (click)="onSubmit()" [disabled]="isSubmitting">
-        {{ isSubmitting ? 'Saving…' : 'Save' }}
-      </button>
-    </div>
-  </div>
+  </div><!-- /card -->
 </div>

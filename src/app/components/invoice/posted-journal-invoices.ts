@@ -1,8 +1,18 @@
-import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
+import { ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
+import {
+  AbstractControl,
+  FormArray,
+  FormBuilder,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  ValidatorFn,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, catchError, forkJoin, of, takeUntil } from 'rxjs';
+import { catchError, firstValueFrom, forkJoin, of } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiClient, getApiErrorMessage } from '../../core/api/api-client.service';
 import type {
   AccountRow,
@@ -17,16 +27,17 @@ import type {
 @Component({
   selector: 'app-posted-journal-invoices',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DatePipe],
   templateUrl: './posted-journal-invoices.html',
   styleUrls: ['./posted-journal-invoices.css'],
 })
-export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
+export class PostedJournalInvoicesComponent implements OnInit {
   private readonly api = inject(ApiClient);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly destroy$ = new Subject<void>();
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
   assetAccounts: AccountRow[] = [];
   expenseAccounts: AccountRow[] = [];
@@ -35,9 +46,11 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
 
   selectedInvoice: JournalListItem | null = null;
   isEditing = false;
+  isLoadingSupport = false;
   isLoadingList = false;
   isLoadingDetail = false;
   isUpdating = false;
+
   accountsError = '';
   employeesError = '';
   listError = '';
@@ -52,15 +65,12 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadSupportData();
-    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
-      const userId = params.get('userId');
-      this.loadList(userId ? Number(userId) : undefined);
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const userId = params.get('userId');
+        this.loadList(userId ? Number(userId) : undefined);
+      });
   }
 
   get entries(): FormArray {
@@ -81,7 +91,9 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
   }
 
   removeEntry(index: number): void {
-    this.entries.removeAt(index);
+    if (this.entries.length > 1) {
+      this.entries.removeAt(index);
+    }
   }
 
   openEditor(invoice: JournalListItem): void {
@@ -104,11 +116,11 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
     this.submitError = '';
 
     if (this.entries.length === 0) {
-      this.submitError = 'Entries are required.';
+      this.submitError = 'At least one entry is required.';
       return;
     }
     if (this.editForm.invalid) {
-      this.submitError = 'Please fill all required fields and correct entry rows.';
+      this.submitError = 'Please fill all required fields and correct any errors.';
       this.editForm.markAllAsTouched();
       return;
     }
@@ -130,20 +142,32 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
 
     this.isUpdating = true;
     try {
-      const { firstValueFrom } = await import('rxjs');
-      await firstValueFrom(this.api.updateJournalInvoice(this.selectedInvoice.journalEntryId, payload));
+      await firstValueFrom(
+        this.api.updateJournalInvoice(this.selectedInvoice.journalEntryId, payload),
+      );
       this.closeEditor();
-      this.loadList();
+      // Re-read current userId filter from query params
+      const userId = this.route.snapshot.queryParamMap.get('userId');
+      this.loadList(userId ? Number(userId) : undefined);
     } catch (err) {
       this.submitError = getApiErrorMessage(err) || 'Failed to update invoice.';
     } finally {
       this.isUpdating = false;
+      this.cdr.detectChanges();
     }
   }
 
+  backToInvoiceEntry(): void {
+    void this.router.navigate(['/payments/invoices']);
+  }
+
+  // ── Private: data loading ───────────────────────────────────────────────────
+
   private loadSupportData(): void {
+    this.isLoadingSupport = true;
     this.accountsError = '';
     this.employeesError = '';
+
     forkJoin({
       accounts: this.api.getAccounts().pipe(
         catchError((err) => {
@@ -158,21 +182,24 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
         }),
       ),
     })
-      .pipe(takeUntil(this.destroy$))
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ accounts, employees }) => {
         this.assetAccounts = accounts.accounts.filter((a) => a.type === 'asset');
         this.expenseAccounts = accounts.accounts.filter((a) => a.type === 'expense');
         this.employees = employees.employees;
+        this.isLoadingSupport = false;
+        this.cdr.detectChanges();
       });
   }
 
   private loadList(userId?: number): void {
     this.listError = '';
     this.isLoadingList = true;
+
     this.api
       .listJournalInvoices(userId)
       .pipe(
-        takeUntil(this.destroy$),
+        takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
           this.listError = getApiErrorMessage(err) || 'Failed to load posted invoices.';
           return of({ invoices: [] as JournalListItem[] });
@@ -181,6 +208,7 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
       .subscribe(({ invoices }) => {
         this.journalInvoices = invoices ?? [];
         this.isLoadingList = false;
+        this.cdr.detectChanges();
       });
   }
 
@@ -193,7 +221,7 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
     this.api
       .getJournalInvoiceDetail(journalEntryId)
       .pipe(
-        takeUntil(this.destroy$),
+        takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
           this.detailError = getApiErrorMessage(err) || 'Failed to load invoice details.';
           return of(null);
@@ -201,7 +229,10 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
       )
       .subscribe((res) => {
         this.isLoadingDetail = false;
-        if (!res) return;
+        if (!res) {
+          this.cdr.detectChanges();
+          return;
+        }
         try {
           this.patchDetail(res);
         } catch (err) {
@@ -209,8 +240,11 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
           this.entries.clear();
           this.addEntry();
         }
+        this.cdr.detectChanges();
       });
   }
+
+  // ── Private: form patching ──────────────────────────────────────────────────
 
   private patchDetail(res: JournalInvoiceDetailResponse | InvoiceLineDetail[]): void {
     const normalized = this.normalizeDetailResponse(res);
@@ -231,43 +265,41 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
     mappedEntries.forEach((entry) => this.addEntry(entry));
   }
 
-  private normalizeDetailResponse(res: JournalInvoiceDetailResponse | InvoiceLineDetail[]): JournalInvoiceDetailResponse {
+  private normalizeDetailResponse(
+    res: JournalInvoiceDetailResponse | InvoiceLineDetail[],
+  ): JournalInvoiceDetailResponse {
     if (Array.isArray(res)) {
-      return {
-        invoice: {},
-        lines: res,
-      };
+      return { invoice: {}, lines: res };
     }
-
-    const safeLines = Array.isArray(res.lines) ? res.lines : [];
-    const safeEntries = Array.isArray(res.entries) ? res.entries : undefined;
     return {
       invoice: res.invoice ?? {},
-      lines: safeLines,
-      entries: safeEntries,
+      lines: Array.isArray(res.lines) ? res.lines : [],
+      entries: Array.isArray(res.entries) ? res.entries : undefined,
     };
   }
 
   private extractEntries(res: JournalInvoiceDetailResponse): JournalEntryLineInput[] {
     if (Array.isArray(res.entries) && res.entries.length > 0) {
       return res.entries
-        .map((entry) => ({
-          fromAccountId: String(entry.fromAccountId ?? ''),
-          reasonAccountId: String(entry.reasonAccountId ?? ''),
-          amount: Number(entry.amount ?? 0),
+        .map((e) => ({
+          fromAccountId: String(e.fromAccountId ?? ''),
+          reasonAccountId: String(e.reasonAccountId ?? ''),
+          amount: Number(e.amount ?? 0),
         }))
-        .filter((entry) => !!entry.fromAccountId && !!entry.reasonAccountId && entry.amount > 0);
+        .filter((e) => !!e.fromAccountId && !!e.reasonAccountId && e.amount > 0);
     }
 
     const lines = Array.isArray(res.lines) ? res.lines : [];
-    const credits = lines.filter((line) => Number(line.credit) > 0);
-    const debits = lines.filter((line) => Number(line.debit) > 0);
+    const credits = lines.filter((l) => Number(l.credit) > 0);
+    const debits = lines.filter((l) => Number(l.debit) > 0);
     const entries: JournalEntryLineInput[] = [];
     const usedDebitIndexes = new Set<number>();
 
     for (const credit of credits) {
       const creditAmount = Number(credit.credit);
-      const debitIdx = debits.findIndex((debit, idx) => !usedDebitIndexes.has(idx) && Number(debit.debit) === creditAmount);
+      const debitIdx = debits.findIndex(
+        (debit, idx) => !usedDebitIndexes.has(idx) && Number(debit.debit) === creditAmount,
+      );
       if (debitIdx < 0) continue;
       usedDebitIndexes.add(debitIdx);
       entries.push({
@@ -287,9 +319,7 @@ export class PostedJournalInvoicesComponent implements OnInit, OnDestroy {
     };
   }
 
-  backToInvoiceEntry(): void {
-    void this.router.navigate(['/payments/invoices']);
-  }
+  // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private getDateInputValue(raw?: string): string {
     if (!raw) return this.getTodayDate();

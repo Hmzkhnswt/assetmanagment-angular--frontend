@@ -4,75 +4,20 @@
 
 .card-title {
   font-weight: 600;
+  font-size: 1rem;
 }
 
-.amount-col {
-  width: 170px;
+/* Prevent callout from being too wide */
+.callout {
+  border-radius: 0.375rem;
 }
 
-.action-col {
-  width: 100px;
+/* Ensure overlay covers the card body properly */
+.overlay {
+  border-radius: inherit;
 }
 
-.help-header {
-  position: relative;
-  white-space: nowrap;
-}
-
-.header-help {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
-  color: #0d6efd;
-  cursor: pointer;
-}
-
-.header-tooltip {
-  position: relative;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%);
-  background: red;
-  color: #fff;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1.2;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s ease-in-out;
-  z-index: 10;
-}
-
-.header-help:hover .header-tooltip,
-.header-help:focus .header-tooltip {
-  opacity: 1;
-  visibility: visible;
-}
-
-.summary-box {
-  background: #f8fafc;
-  border: 1px solid #dbe3ee;
-  border-radius: 6px;
-  padding: 10px 14px;
-  min-width: 260px;
-}
-
-.summary-pre {
-  background: #f8fafc;
-  border: 1px solid #dbe3ee;
-  border-radius: 6px;
-  padding: 8px;
-}
-
-.invoice-edit-section .form-label {
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.invoice-edit-section textarea {
-  resize: vertical;
+/* Subtle row error highlight */
+.bg-danger.bg-opacity-10 {
+  border-left: 3px solid var(--bs-danger);
 }

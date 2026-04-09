@@ -2,7 +2,17 @@
   padding: 0 1rem;
 }
 
-.form-label {
-  font-size: 0.85rem;
-  font-weight: 500;
+.card-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Keep truncated descriptions from breaking layout */
+td.text-truncate {
+  max-width: 0;
+}
+
+/* Subtle row error highlight */
+.bg-danger.bg-opacity-10 {
+  border-left: 3px solid var(--bs-danger);
 }

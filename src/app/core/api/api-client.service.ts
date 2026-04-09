@@ -1,7 +1,8 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { HttpService } from './http.service';
+import { API_ENDPOINTS } from './constants';
 import type {
   AccountsResponse,
   BalanceAccountsResponse,
@@ -16,10 +17,6 @@ import type {
   SummaryByTypeResponse,
   UpdateJournalInvoiceBody,
 } from './api.types';
-
-const JSON_HEADERS = new HttpHeaders({
-  'Content-Type': 'application/json',
-});
 
 export function getApiErrorMessage(err: unknown): string {
   if (err instanceof HttpErrorResponse) {
@@ -38,31 +35,23 @@ export function getApiErrorMessage(err: unknown): string {
 
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
-  private readonly http = inject(HttpClient);
-
-  private url(path: string): string {
-    const base = environment.apiUrl.replace(/\/$/, '');
-    const p = path.startsWith('/') ? path : `/${path}`;
-    return `${base}/api${p}`;
-  }
+  private readonly httpService = inject(HttpService);
 
   health(): Observable<HealthResponse> {
-    return this.http.get<HealthResponse>(this.url('/health'));
+    return this.httpService.get<HealthResponse>(API_ENDPOINTS.HEALTH);
   }
 
   getAccounts(types = 'asset,expense'): Observable<AccountsResponse> {
     const params = new HttpParams().set('types', types);
-    return this.http.get<AccountsResponse>(this.url('/accounts'), { params });
+    return this.httpService.get<AccountsResponse>(API_ENDPOINTS.ACCOUNTS, params);
   }
 
   getEmployees(): Observable<EmployeesResponse> {
-    return this.http.get<EmployeesResponse>(this.url('/employees'));
+    return this.httpService.get<EmployeesResponse>(API_ENDPOINTS.EMPLOYEES);
   }
 
   createJournalInvoice(body: CreateJournalInvoiceBody): Observable<CreateJournalInvoiceResponse> {
-    return this.http.post<CreateJournalInvoiceResponse>(this.url('/invoices/journal'), body, {
-      headers: JSON_HEADERS,
-    });
+    return this.httpService.post<CreateJournalInvoiceResponse>(API_ENDPOINTS.JOURNAL_INVOICES, body);
   }
 
   listJournalInvoices(userId?: number | null): Observable<JournalListResponse> {
@@ -70,39 +59,37 @@ export class ApiClient {
     if (userId != null && !Number.isNaN(userId)) {
       params = params.set('userId', String(userId));
     }
-    return this.http.get<JournalListResponse>(this.url('/invoices/journal'), { params });
+    return this.httpService.get<JournalListResponse>(API_ENDPOINTS.JOURNAL_INVOICES, params);
   }
 
   getJournalInvoiceDetail(journalEntryId: string): Observable<JournalInvoiceDetailResponse> {
-    return this.http.get<JournalInvoiceDetailResponse>(this.url(`/invoices/journal/${encodeURIComponent(journalEntryId)}`));
+    return this.httpService.get<JournalInvoiceDetailResponse>(API_ENDPOINTS.JOURNAL_INVOICE_DETAIL(journalEntryId));
   }
 
   updateJournalInvoice(journalEntryId: string, body: UpdateJournalInvoiceBody): Observable<JournalInvoiceSummary> {
-    return this.http.put<JournalInvoiceSummary>(this.url(`/invoices/journal/${encodeURIComponent(journalEntryId)}`), body, {
-      headers: JSON_HEADERS,
-    });
+    return this.httpService.put<JournalInvoiceSummary>(API_ENDPOINTS.JOURNAL_INVOICE_DETAIL(journalEntryId), body);
   }
 
   getBalancesTransactions(userId: number): Observable<BalanceTransactionsResponse> {
     const params = new HttpParams().set('userId', String(userId));
-    return this.http.get<BalanceTransactionsResponse>(this.url('/balances/transactions'), { params });
+    return this.httpService.get<BalanceTransactionsResponse>(API_ENDPOINTS.BALANCES_TRANSACTIONS, params);
   }
 
   getBalancesAccounts(userId: number): Observable<BalanceAccountsResponse> {
     const params = new HttpParams().set('userId', String(userId));
-    return this.http.get<BalanceAccountsResponse>(this.url('/balances/accounts'), { params });
+    return this.httpService.get<BalanceAccountsResponse>(API_ENDPOINTS.BALANCES_ACCOUNTS, params);
   }
 
   getBalancesSummaryByType(userId: number): Observable<SummaryByTypeResponse> {
     const params = new HttpParams().set('userId', String(userId));
-    return this.http.get<SummaryByTypeResponse>(this.url('/balances/summary-by-type'), { params });
+    return this.httpService.get<SummaryByTypeResponse>(API_ENDPOINTS.BALANCES_SUMMARY_BY_TYPE, params);
   }
 
   getOrganizationAccounts(): Observable<BalanceAccountsResponse> {
-    return this.http.get<BalanceAccountsResponse>(this.url('/balances/organization/accounts'));
+    return this.httpService.get<BalanceAccountsResponse>(API_ENDPOINTS.ORGANIZATION_ACCOUNTS);
   }
 
   getOrganizationSummaryByType(): Observable<SummaryByTypeResponse> {
-    return this.http.get<SummaryByTypeResponse>(this.url('/balances/organization/summary-by-type'));
+    return this.httpService.get<SummaryByTypeResponse>(API_ENDPOINTS.ORGANIZATION_SUMMARY_BY_TYPE);
   }
 }

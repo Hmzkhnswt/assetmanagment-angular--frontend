@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { catchError, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timeout } from 'rxjs/operators';
 import { ApiClient, getApiErrorMessage } from '../../core/api/api-client.service';
 import type {
@@ -20,69 +21,119 @@ import type {
 export class AssetsBalancesComponent {
   private readonly api = inject(ApiClient);
   private readonly fb = inject(FormBuilder);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
 
-  private activeRequestVersion = 0;
-  private pendingRequests = 0;
+  /** Emits each time loadData() is called; switchMap cancels prior in-flight request. */
+  private readonly loadData$ = new Subject<number>();
 
   filterForm: FormGroup;
   employees: EmployeeRow[] = [];
-  isLoadingEmployees = false;
 
+  isLoadingEmployees = false;
   isLoading = false;
+  hasQueried = false;
+
+  employeesError = '';
   errorMessage = '';
+
   recentTransactions: BalanceTransactionRow[] = [];
   balances: BalanceAccountRow[] = [];
   summaryByType: Record<string, number> | null = null;
 
   constructor() {
-    this.filterForm = this.fb.group({
-      userId: [''],
-    });
-    void this.loadEmployeesThenMaybeData();
+    this.filterForm = this.fb.group({ userId: [''] });
+
+    // Wire up the data-load pipeline (switchMap auto-cancels stale requests)
+    this.loadData$
+      .pipe(
+        tap(() => {
+          this.isLoading = true;
+          this.errorMessage = '';
+          this.cdr.detectChanges();
+        }),
+        switchMap((userId) =>
+          forkJoin({
+            transactions: this.api.getBalancesTransactions(userId).pipe(
+              timeout(15000),
+              catchError((err) => {
+                this.errorMessage = getApiErrorMessage(err) || 'Failed to load transactions.';
+                return of(null);
+              }),
+            ),
+            accounts: this.api.getBalancesAccounts(userId).pipe(
+              timeout(15000),
+              catchError((err) => {
+                if (!this.errorMessage)
+                  this.errorMessage = getApiErrorMessage(err) || 'Failed to load account balances.';
+                return of(null);
+              }),
+            ),
+            summary: this.api.getBalancesSummaryByType(userId).pipe(
+              timeout(15000),
+              catchError((err) => {
+                if (!this.errorMessage)
+                  this.errorMessage = getApiErrorMessage(err) || 'Failed to load balance summary.';
+                return of(null);
+              }),
+            ),
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(({ transactions, accounts, summary }) => {
+        this.recentTransactions = transactions ? this.normalizeTransactions(transactions) : [];
+        this.balances = accounts ? this.normalizeAccounts(accounts) : [];
+        this.summaryByType = summary ? this.normalizeSummary(summary) : null;
+        this.isLoading = false;
+        this.cdr.detectChanges();
+      });
+
+    // Load employees on init, then auto-select first & trigger data
+    this.loadEmployees();
   }
 
-  private async loadEmployeesThenMaybeData(): Promise<void> {
-    await this.loadEmployees();
-    const first = this.employees[0]?.userId;
-    if (first != null && this.filterForm.get('userId')?.value === '') {
-      this.filterForm.patchValue({ userId: String(first) });
-    }
-    await this.loadData();
-  }
+  // ── Public API (template-facing) ────────────────────────────────────────────
 
-  async loadEmployees(): Promise<void> {
+  loadEmployees(): void {
     this.isLoadingEmployees = true;
-    this.errorMessage = '';
-    try {
-      const { employees } = await firstValueFrom(this.api.getEmployees());
-      this.employees = employees ?? [];
-    } catch (err) {
-      this.errorMessage = getApiErrorMessage(err) || 'Failed to load employees.';
-    } finally {
-      this.isLoadingEmployees = false;
-    }
+    this.employeesError = '';
+
+    this.api
+      .getEmployees()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        catchError((err) => {
+          this.employeesError = getApiErrorMessage(err) || 'Failed to load employees.';
+          return of({ employees: [] as EmployeeRow[] });
+        }),
+      )
+      .subscribe(({ employees }) => {
+        this.employees = employees ?? [];
+        this.isLoadingEmployees = false;
+
+        const first = this.employees[0]?.userId;
+        if (first != null && !this.filterForm.get('userId')?.value) {
+          this.filterForm.patchValue({ userId: String(first) });
+          this.triggerLoad();
+        }
+        this.cdr.detectChanges();
+      });
   }
 
-  async loadData(): Promise<void> {
-    const uidRaw = this.filterForm.get('userId')?.value;
-    const userId = uidRaw !== '' && uidRaw != null ? Number(uidRaw) : NaN;
-    if (!Number.isFinite(userId)) {
-      this.errorMessage = 'Select an employee (userId) to load balances.';
-      this.recentTransactions = [];
-      this.balances = [];
-      this.summaryByType = null;
-      return;
-    }
-
-    const requestVersion = ++this.activeRequestVersion;
-    this.isLoading = true;
-    this.errorMessage = '';
-    this.pendingRequests = 3;
-
-    void this.loadTransactions(userId, requestVersion);
-    void this.loadBalances(userId, requestVersion);
-    void this.loadSummary(userId, requestVersion);
+  loadData(): void {
+    this.triggerLoad();
   }
+
+  summaryEntries(): { key: string; value: number }[] {
+    if (!this.summaryByType) return [];
+    return Object.entries(this.summaryByType).map(([key, value]) => ({
+      key,
+      value: Number(value),
+    }));
+  }
+
+  // ── Display helpers ─────────────────────────────────────────────────────────
 
   displayTxDate(row: BalanceTransactionRow): string {
     return String(row.date ?? row.entryDate ?? '—');
@@ -90,6 +141,10 @@ export class AssetsBalancesComponent {
 
   displayTxAccount(row: BalanceTransactionRow): string {
     return String(row.accountName ?? row.account ?? row.accountId ?? '—');
+  }
+
+  displayTxType(row: BalanceTransactionRow): string {
+    return String(row.accountType ?? '—');
   }
 
   accountDisplayName(row: BalanceAccountRow): string {
@@ -112,76 +167,53 @@ export class AssetsBalancesComponent {
     return Number(row.totalCredit ?? row.total_credit ?? 0);
   }
 
-  summaryEntries(): { key: string; value: number }[] {
-    if (!this.summaryByType) return [];
-    return Object.entries(this.summaryByType).map(([key, value]) => ({ key, value: Number(value) }));
+  summaryIcon(key: string): string {
+    const icons: Record<string, string> = {
+      asset: 'fa-building',
+      expense: 'fa-receipt',
+      liability: 'fa-balance-scale',
+      equity: 'fa-chart-pie',
+      revenue: 'fa-arrow-trend-up',
+      income: 'fa-coins',
+    };
+    return icons[key.toLowerCase()] ?? 'fa-circle-dollar-to-slot';
   }
 
-  private async loadTransactions(userId: number, requestVersion: number): Promise<void> {
-    try {
-      const response = await firstValueFrom(
-        this.api.getBalancesTransactions(userId).pipe(timeout(15000)),
-      );
-      if (requestVersion === this.activeRequestVersion) {
-        this.recentTransactions = this.normalizeTransactions(response);
-      }
-    } catch (err) {
-      if (requestVersion === this.activeRequestVersion) {
-        this.errorMessage = getApiErrorMessage(err) || 'Failed to load transactions.';
-      }
-    } finally {
-      this.finishRequest(requestVersion);
-    }
+  summaryColor(key: string): string {
+    const colors: Record<string, string> = {
+      asset: 'bg-primary',
+      expense: 'bg-warning',
+      liability: 'bg-danger',
+      equity: 'bg-success',
+      revenue: 'bg-info',
+      income: 'bg-info',
+    };
+    return colors[key.toLowerCase()] ?? 'bg-secondary';
   }
 
-  private async loadBalances(userId: number, requestVersion: number): Promise<void> {
-    try {
-      const response = await firstValueFrom(
-        this.api.getBalancesAccounts(userId).pipe(timeout(15000)),
-      );
-      if (requestVersion === this.activeRequestVersion) {
-        this.balances = this.normalizeAccounts(response);
-      }
-    } catch (err) {
-      if (requestVersion === this.activeRequestVersion) {
-        this.errorMessage = getApiErrorMessage(err) || 'Failed to load account balances.';
-      }
-    } finally {
-      this.finishRequest(requestVersion);
-    }
-  }
+  // ── Private helpers ─────────────────────────────────────────────────────────
 
-  private async loadSummary(userId: number, requestVersion: number): Promise<void> {
-    try {
-      const response = await firstValueFrom(
-        this.api.getBalancesSummaryByType(userId).pipe(timeout(15000)),
-      );
-      if (requestVersion === this.activeRequestVersion) {
-        this.summaryByType = this.normalizeSummary(response);
-      }
-    } catch (err) {
-      if (requestVersion === this.activeRequestVersion) {
-        this.errorMessage = getApiErrorMessage(err) || 'Failed to load summary by type.';
-      }
-    } finally {
-      this.finishRequest(requestVersion);
-    }
-  }
+  private triggerLoad(): void {
+    const uidRaw = this.filterForm.get('userId')?.value;
+    const userId = uidRaw !== '' && uidRaw != null ? Number(uidRaw) : NaN;
 
-  private finishRequest(requestVersion: number): void {
-    if (requestVersion !== this.activeRequestVersion) return;
-    this.pendingRequests = Math.max(0, this.pendingRequests - 1);
-    if (this.pendingRequests === 0) {
-      this.isLoading = false;
+    if (!Number.isFinite(userId)) {
+      this.errorMessage = 'Please select an employee to load balances.';
+      this.recentTransactions = [];
+      this.balances = [];
+      this.summaryByType = null;
+      return;
     }
+
+    this.hasQueried = true;
+    this.loadData$.next(userId);
   }
 
   private normalizeTransactions(value: unknown): BalanceTransactionRow[] {
     if (Array.isArray(value)) return value as BalanceTransactionRow[];
     if (!value || typeof value !== 'object') return [];
     const o = value as Record<string, unknown>;
-    const candidates = ['transactions', 'rows', 'data', 'items'];
-    for (const key of candidates) {
+    for (const key of ['transactions', 'rows', 'data', 'items']) {
       const arr = o[key];
       if (Array.isArray(arr)) return arr as BalanceTransactionRow[];
     }
