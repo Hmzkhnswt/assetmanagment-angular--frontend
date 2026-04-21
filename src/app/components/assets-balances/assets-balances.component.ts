@@ -5,6 +5,7 @@ import { catchError, forkJoin, of, Subject, switchMap, tap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { timeout } from 'rxjs/operators';
 import { ApiClient, getApiErrorMessage } from '../../core/api/api-client.service';
+import { getApiFieldErrors } from '../../core/api/api-error.utils';
 import type {
   BalanceAccountRow,
   BalanceTransactionRow,
@@ -36,6 +37,7 @@ export class AssetsBalancesComponent {
 
   employeesError = '';
   errorMessage = '';
+  userIdFieldError = '';
 
   recentTransactions: BalanceTransactionRow[] = [];
   balances: BalanceAccountRow[] = [];
@@ -50,6 +52,7 @@ export class AssetsBalancesComponent {
         tap(() => {
           this.isLoading = true;
           this.errorMessage = '';
+          this.userIdFieldError = '';
           this.cdr.detectChanges();
         }),
         switchMap((userId) =>
@@ -57,6 +60,7 @@ export class AssetsBalancesComponent {
             transactions: this.api.getBalancesTransactions(userId).pipe(
               timeout(15000),
               catchError((err) => {
+                this.handleStructuredUserError(err);
                 this.errorMessage = getApiErrorMessage(err) || 'Failed to load transactions.';
                 return of(null);
               }),
@@ -64,6 +68,7 @@ export class AssetsBalancesComponent {
             accounts: this.api.getBalancesAccounts(userId).pipe(
               timeout(15000),
               catchError((err) => {
+                this.handleStructuredUserError(err);
                 if (!this.errorMessage)
                   this.errorMessage = getApiErrorMessage(err) || 'Failed to load account balances.';
                 return of(null);
@@ -72,6 +77,7 @@ export class AssetsBalancesComponent {
             summary: this.api.getBalancesSummaryByType(userId).pipe(
               timeout(15000),
               catchError((err) => {
+                this.handleStructuredUserError(err);
                 if (!this.errorMessage)
                   this.errorMessage = getApiErrorMessage(err) || 'Failed to load balance summary.';
                 return of(null);
@@ -194,11 +200,12 @@ export class AssetsBalancesComponent {
   // ── Private helpers ─────────────────────────────────────────────────────────
 
   private triggerLoad(): void {
-    const uidRaw = this.filterForm.get('userId')?.value;
-    const userId = uidRaw !== '' && uidRaw != null ? Number(uidRaw) : NaN;
-
-    if (!Number.isFinite(userId)) {
-      this.errorMessage = 'Please select an employee to load balances.';
+    this.errorMessage = '';
+    this.userIdFieldError = '';
+    const userId = this.getValidUserId();
+    if (userId == null) {
+      this.errorMessage = 'Please select a valid user.';
+      this.userIdFieldError = 'Please select a valid user.';
       this.recentTransactions = [];
       this.balances = [];
       this.summaryByType = null;
@@ -207,6 +214,20 @@ export class AssetsBalancesComponent {
 
     this.hasQueried = true;
     this.loadData$.next(userId);
+  }
+
+  private getValidUserId(): number | null {
+    const uidRaw = this.filterForm.get('userId')?.value;
+    const parsed = Number(uidRaw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private handleStructuredUserError(err: unknown): void {
+    const firstFieldError = getApiFieldErrors(err)[0];
+    if (!firstFieldError?.message) return;
+    if (firstFieldError.path.toLowerCase().includes('user')) {
+      this.userIdFieldError = firstFieldError.message;
+    }
   }
 
   private normalizeTransactions(value: unknown): BalanceTransactionRow[] {

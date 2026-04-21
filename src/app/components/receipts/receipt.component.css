@@ -1,0 +1,16 @@
+.container-fluid {
+  padding: 0 1rem;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.callout {
+  border-radius: 0.375rem;
+}
+
+.overlay {
+  border-radius: inherit;
+}

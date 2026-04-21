@@ -1,0 +1,93 @@
+<div class="container-fluid">
+  <div class="card card-primary card-outline mb-4" [formGroup]="filterForm">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-book me-2"></i>Journal Entries Statement
+      </h3>
+    </div>
+
+    <div class="overlay d-flex align-items-center justify-content-center" *ngIf="isLoading">
+      <i class="fas fa-sync-alt fa-spin fa-2x text-primary"></i>
+    </div>
+
+    <div class="card-body">
+      <div class="alert alert-danger d-flex align-items-center gap-2" *ngIf="errorMessage" role="alert">
+        <i class="fas fa-exclamation-triangle flex-shrink-0"></i>
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">From</label>
+          <input type="date" class="form-control" formControlName="from" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">To</label>
+          <input type="date" class="form-control" formControlName="to" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Account</label>
+          <select class="form-select" formControlName="accountId">
+            <option value="">Select account</option>
+            <option *ngFor="let a of accountOptions" [value]="a.id">
+              {{ a.name }}
+            </option>
+          </select>
+          <div class="form-text text-danger" *ngIf="accountIdFieldError">{{ accountIdFieldError }}</div>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-primary w-100" (click)="runReport()" [disabled]="isLoading">
+            <i class="fas fa-search me-1"></i>Load
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-outline card-info">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-university me-2"></i>
+        Statement
+        <span class="badge bg-info text-dark ms-2" *ngIf="selectedAccount">{{ selectedAccount.name }}</span>
+      </h3>
+    </div>
+    <div class="card-body p-0">
+      <div class="inbox-report text-center py-4 text-muted" *ngIf="rows.length === 0 && !isLoading">
+        <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
+        <small>No statement rows for selected filters.</small>
+      </div>
+
+      <div class="table-responsive" *ngIf="rows.length > 0">
+        <table class="table table-hover table-striped mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 120px;">Date</th>
+              <th style="width: 140px;">Reference</th>
+              <th>Description</th>
+              <th class="text-end" style="width: 130px;">Debit</th>
+              <th class="text-end" style="width: 130px;">Credit</th>
+              <th class="text-end" style="width: 150px;">Running Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows">
+              <td class="text-muted small">{{ row.date }}</td>
+              <td><span class="badge bg-secondary" *ngIf="row.reference">{{ row.reference }}</span><span *ngIf="!row.reference">—</span></td>
+              <td>{{ row.description || '—' }}</td>
+              <td class="text-end text-danger">{{ row.debit ? (row.debit | number:'1.2-2') : '—' }}</td>
+              <td class="text-end text-success">{{ row.credit ? (row.credit | number:'1.2-2') : '—' }}</td>
+              <td class="text-end fw-semibold">{{ row.runningBalance | number:'1.2-2' }}</td>
+            </tr>
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="5" class="text-end fw-semibold">Closing Balance:</td>
+              <td class="text-end fw-bold">{{ closingBalanceLabel() }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -67,7 +67,7 @@
         <div class="col-md-9">
           <label class="form-label fw-semibold">Payee / Employee</label>
           <select class="form-select" formControlName="payeeUserId">
-            <option value="">— Select Employee or leave blank for Other Expenses —</option>
+            <option value="">Employees Name</option>
             <option *ngFor="let e of employees" [value]="e.userId">{{ e.fullName }}</option>
           </select>
           <div class="form-text" *ngIf="employees.length === 0 && !isLoadingData">
@@ -103,12 +103,18 @@
                     <option value="">Select asset account</option>
                     <option *ngFor="let a of assetAccounts" [value]="a.id">{{ a.name }}</option>
                   </select>
+                  <div class="form-text text-danger" *ngIf="entry.get('fromAccountId')?.errors?.['server']">
+                    {{ entry.get('fromAccountId')?.errors?.['server'] }}
+                  </div>
                 </td>
                 <td>
                   <select class="form-select form-select-sm" formControlName="reasonAccountId">
                     <option value="">Select expense account</option>
                     <option *ngFor="let a of expenseAccounts" [value]="a.id">{{ a.name }}</option>
                   </select>
+                  <div class="form-text text-danger" *ngIf="entry.get('reasonAccountId')?.errors?.['server']">
+                    {{ entry.get('reasonAccountId')?.errors?.['server'] }}
+                  </div>
                 </td>
                 <td>
                   <input
@@ -119,6 +125,9 @@
                     step="0.01"
                     placeholder="0.00"
                   />
+                  <div class="form-text text-danger" *ngIf="entry.get('amount')?.errors?.['server']">
+                    {{ entry.get('amount')?.errors?.['server'] }}
+                  </div>
                 </td>
                 <td class="text-center">
                   <button
@@ -206,8 +215,8 @@
         </button>
 
         <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-info" (click)="openPostedInvoicesPage()">
-            <i class="fas fa-list-alt me-1"></i>View Posted Invoices
+          <button type="button" class="btn btn-outline-secondary" (click)="openPostedInvoicesPage()">
+            <i class="fas fa-arrow-left me-1"></i>Back to Posted Invoices
           </button>
           <button
             type="button"

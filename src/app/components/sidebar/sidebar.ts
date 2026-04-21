@@ -13,8 +13,18 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 export class SidebarComponent {
 
   isPaymentsOpen = false;
+  isReceiptsOpen = false;
+  isReportsOpen = false;
 
-  togglePayments() {
+  togglePayments(): void {
     this.isPaymentsOpen = !this.isPaymentsOpen;
+  }
+
+  toggleReceipts(): void {
+    this.isReceiptsOpen = !this.isReceiptsOpen;
+  }
+
+  toggleReports(): void {
+    this.isReportsOpen = !this.isReportsOpen;
   }
 }

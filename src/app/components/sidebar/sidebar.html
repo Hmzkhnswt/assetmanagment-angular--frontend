@@ -45,17 +45,39 @@
           </ul>
         </li>
 
-        <li class="nav-item">
-          <a href="#" class="nav-link" (click)="$event.preventDefault()">
+        <li class="nav-item" [class.menu-open]="isReceiptsOpen">
+          <a href="#" class="nav-link" (click)="toggleReceipts(); $event.preventDefault()">
             <i class="nav-icon fas fa-receipt"></i>
-            <p>Receipts</p>
+            <p>
+              Receipts
+              <i class="nav-arrow fas fa-angle-right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a routerLink="/receipts" routerLinkActive="active" class="nav-link">
+                <i class="nav-icon far fa-circle"></i>
+                <p>Receipts</p>
+              </a>
+            </li>
+          </ul>
         </li>
-        <li class="nav-item">
-          <a href="#" class="nav-link" (click)="$event.preventDefault()">
+        <li class="nav-item" [class.menu-open]="isReportsOpen">
+          <a href="#" class="nav-link" (click)="toggleReports(); $event.preventDefault()">
             <i class="nav-icon fas fa-chart-line"></i>
-            <p>Reports</p>
+            <p>
+              Reports
+              <i class="nav-arrow fas fa-angle-right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a routerLink="/reports/journal-entries" routerLinkActive="active" class="nav-link">
+                <i class="nav-icon far fa-circle"></i>
+                <p>Journal Entries</p>
+              </a>
+            </li>
+          </ul>
         </li>
       </ul>
     </nav>

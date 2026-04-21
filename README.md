@@ -57,3 +57,29 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+## API Envelope Migration Notes
+
+Backend responses now use an envelope:
+
+```json
+{
+  "status": "success",
+  "message": "Human readable message",
+  "data": {},
+  "metadata": {
+    "timestamp": "ISO",
+    "version": "v1"
+  }
+}
+```
+
+- Old access (direct payload): `response.accounts`
+- New access (enveloped payload): `response.data.accounts`
+
+### Frontend migration pattern
+
+- `HttpService#get/post/put/delete` now return `ApiSuccessResponse<T>`.
+- `ApiClient` unwraps `response.data` for current component callers.
+- For legacy callers during migration, `HttpService#getData/postData/putData/deleteData` provide mapped `response.data`.
+- Validation errors from backend (`errors[]`) are mapped into Angular form controls via `applyApiValidationErrors(...)`, while `message` remains the top-level UI/toast text.

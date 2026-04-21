@@ -7,12 +7,10 @@
   font-size: 1rem;
 }
 
-/* Keep truncated descriptions from breaking layout */
 td.text-truncate {
   max-width: 0;
 }
 
-/* Subtle row error highlight */
 .bg-danger.bg-opacity-10 {
   border-left: 3px solid var(--bs-danger);
 }

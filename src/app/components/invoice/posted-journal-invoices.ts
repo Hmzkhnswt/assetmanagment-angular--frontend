@@ -14,6 +14,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, firstValueFrom, forkJoin, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiClient, getApiErrorMessage } from '../../core/api/api-client.service';
+import { applyApiValidationErrors, clearServerErrors } from '../../core/api/api-error.utils';
 import type {
   AccountRow,
   EmployeeRow,
@@ -23,6 +24,8 @@ import type {
   JournalListItem,
   UpdateJournalInvoiceBody,
 } from '../../core/api/api.types';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Component({
   selector: 'app-posted-journal-invoices',
@@ -81,8 +84,8 @@ export class PostedJournalInvoicesComponent implements OnInit {
     this.entries.push(
       this.fb.group(
         {
-          fromAccountId: [prefill?.fromAccountId ?? '', Validators.required],
-          reasonAccountId: [prefill?.reasonAccountId ?? '', Validators.required],
+          fromAccountId: [prefill?.fromAccountId ?? '', [Validators.required, this.uuidValidator()]],
+          reasonAccountId: [prefill?.reasonAccountId ?? '', [Validators.required, this.uuidValidator()]],
           amount: [prefill?.amount ?? null, [Validators.required, Validators.min(0.01)]],
         },
         { validators: this.accountsMustBeDifferentValidator() },
@@ -100,6 +103,12 @@ export class PostedJournalInvoicesComponent implements OnInit {
     this.selectedInvoice = invoice;
     this.isEditing = true;
     this.loadInvoiceDetail(invoice.journalEntryId);
+    setTimeout(() => {
+      document.getElementById('posted-journal-invoice-editor')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 0);
   }
 
   closeEditor(): void {
@@ -107,6 +116,7 @@ export class PostedJournalInvoicesComponent implements OnInit {
     this.selectedInvoice = null;
     this.detailError = '';
     this.submitError = '';
+    clearServerErrors(this.editForm);
     this.entries.clear();
     this.editForm.reset({ date: this.getTodayDate(), description: '' });
   }
@@ -150,6 +160,10 @@ export class PostedJournalInvoicesComponent implements OnInit {
       const userId = this.route.snapshot.queryParamMap.get('userId');
       this.loadList(userId ? Number(userId) : undefined);
     } catch (err) {
+      applyApiValidationErrors(this.editForm, err, {
+        sourceAccountId: 'entries.0.fromAccountId',
+        expenseAccountId: 'entries.0.reasonAccountId',
+      });
       this.submitError = getApiErrorMessage(err) || 'Failed to update invoice.';
     } finally {
       this.isUpdating = false;
@@ -157,8 +171,8 @@ export class PostedJournalInvoicesComponent implements OnInit {
     }
   }
 
-  backToInvoiceEntry(): void {
-    void this.router.navigate(['/payments/invoices']);
+  addInvoice(): void {
+    void this.router.navigate(['/payments/invoices/new']);
   }
 
   // ── Private: data loading ───────────────────────────────────────────────────
@@ -169,9 +183,17 @@ export class PostedJournalInvoicesComponent implements OnInit {
     this.employeesError = '';
 
     forkJoin({
-      accounts: this.api.getAccounts().pipe(
+      assetAccounts: this.api.getAssetAccounts().pipe(
         catchError((err) => {
-          this.accountsError = getApiErrorMessage(err) || 'Failed to load chart of accounts.';
+          this.accountsError = getApiErrorMessage(err) || 'Failed to load asset accounts.';
+          return of({ accounts: [] as AccountRow[] });
+        }),
+      ),
+      expenseAccounts: this.api.getExpenseAccounts().pipe(
+        catchError((err) => {
+          if (!this.accountsError) {
+            this.accountsError = getApiErrorMessage(err) || 'Failed to load expense accounts.';
+          }
           return of({ accounts: [] as AccountRow[] });
         }),
       ),
@@ -183,9 +205,9 @@ export class PostedJournalInvoicesComponent implements OnInit {
       ),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ accounts, employees }) => {
-        this.assetAccounts = accounts.accounts.filter((a) => a.type === 'asset');
-        this.expenseAccounts = accounts.accounts.filter((a) => a.type === 'expense');
+      .subscribe(({ assetAccounts, expenseAccounts, employees }) => {
+        this.assetAccounts = assetAccounts.accounts;
+        this.expenseAccounts = expenseAccounts.accounts;
         this.employees = employees.employees;
         this.isLoadingSupport = false;
         this.cdr.detectChanges();
@@ -316,6 +338,14 @@ export class PostedJournalInvoicesComponent implements OnInit {
       const from = control.get('fromAccountId')?.value;
       const reason = control.get('reasonAccountId')?.value;
       return from && reason && String(from) === String(reason) ? { sameAccount: true } : null;
+    };
+  }
+
+  private uuidValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const value = String(control.value ?? '').trim();
+      if (!value) return null;
+      return UUID_REGEX.test(value) ? null : { uuid: true };
     };
   }
 

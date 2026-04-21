@@ -11,17 +11,19 @@ describe('InvoiceComponent', () => {
   beforeEach(async () => {
     const apiStub: Pick<
       ApiClient,
-      'getAccounts' | 'getEmployees' | 'listJournalInvoices' | 'createJournalInvoice'
+      'getAssetAccounts' | 'getExpenseAccounts' | 'getEmployees' | 'createJournalInvoice'
     > = {
-      getAccounts: () =>
+      getAssetAccounts: () =>
         of({
           accounts: [
             { id: 'a1', name: 'Cash', type: 'asset', parent_id: null, created_at: '' },
-            { id: 'e1', name: 'Payroll', type: 'expense', parent_id: null, created_at: '' },
           ],
         }),
+      getExpenseAccounts: () =>
+        of({
+          accounts: [{ id: 'e1', name: 'Payroll', type: 'expense', parent_id: null, created_at: '' }],
+        }),
       getEmployees: () => of({ employees: [{ id: '1', fullName: 'Test User', salary: 0, userId: 7, created_at: '' }] }),
-      listJournalInvoices: () => of({ invoices: [] }),
       createJournalInvoice: () =>
         of({
           invoice: {

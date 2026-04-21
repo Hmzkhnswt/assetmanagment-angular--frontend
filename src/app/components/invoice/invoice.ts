@@ -14,7 +14,10 @@ import { catchError, firstValueFrom, forkJoin, of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ApiClient, getApiErrorMessage } from '../../core/api/api-client.service';
+import { applyApiValidationErrors, clearServerErrors } from '../../core/api/api-error.utils';
 import type { AccountRow, CreateJournalInvoiceBody, EmployeeRow } from '../../core/api/api.types';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Component({
   selector: 'app-invoice',
@@ -81,8 +84,8 @@ export class InvoiceComponent {
     this.entries.push(
       this.fb.group(
         {
-          fromAccountId: ['', Validators.required],
-          reasonAccountId: ['', Validators.required],
+          fromAccountId: ['', [Validators.required, this.uuidValidator()]],
+          reasonAccountId: ['', [Validators.required, this.uuidValidator()]],
           amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
         },
         { validators: this.accountsMustBeDifferentValidator() },
@@ -104,9 +107,17 @@ export class InvoiceComponent {
     this.employeesError = '';
 
     forkJoin({
-      accounts: this.api.getAccounts().pipe(
+      assetAccounts: this.api.getAssetAccounts().pipe(
         catchError((err) => {
-          this.accountsError = getApiErrorMessage(err) || 'Failed to load chart of accounts.';
+          this.accountsError = getApiErrorMessage(err) || 'Failed to load asset accounts.';
+          return of({ accounts: [] as AccountRow[] });
+        }),
+      ),
+      expenseAccounts: this.api.getExpenseAccounts().pipe(
+        catchError((err) => {
+          if (!this.accountsError) {
+            this.accountsError = getApiErrorMessage(err) || 'Failed to load expense accounts.';
+          }
           return of({ accounts: [] as AccountRow[] });
         }),
       ),
@@ -118,12 +129,12 @@ export class InvoiceComponent {
       ),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(({ accounts, employees }) => {
-        this.assetAccounts = accounts.accounts.filter((a) => a.type === 'asset');
-        this.expenseAccounts = accounts.accounts.filter((a) => a.type === 'expense');
+      .subscribe(({ assetAccounts, expenseAccounts, employees }) => {
+        this.assetAccounts = assetAccounts.accounts;
+        this.expenseAccounts = expenseAccounts.accounts;
         this.employees = employees.employees;
         this.isLoadingData = false;
-        this.cdr.detectChanges();
+        this.cdr.markForCheck();
       });
   }
 
@@ -132,13 +143,14 @@ export class InvoiceComponent {
   openPostedInvoicesPage(): void {
     const uidRaw = this.invoiceForm.get('payeeUserId')?.value;
     const queryParams = uidRaw !== '' && uidRaw != null ? { userId: String(uidRaw) } : {};
-    void this.router.navigate(['/payments/posted-journal-invoices'], { queryParams });
+    void this.router.navigate(['/payments/invoices'], { queryParams });
   }
 
   // ── Submit ──────────────────────────────────────────────────────────────────
 
   async onSubmit(): Promise<void> {
     this.submitError = '';
+    clearServerErrors(this.invoiceForm);
     this.dismissToast();
 
     if (this.entries.length === 0) {
@@ -170,10 +182,14 @@ export class InvoiceComponent {
       this.addEntry();
       this.invoiceForm.patchValue({ description: '' });
     } catch (err) {
+      applyApiValidationErrors(this.invoiceForm, err, {
+        sourceAccountId: 'entries.0.fromAccountId',
+        expenseAccountId: 'entries.0.reasonAccountId',
+      });
       this.submitError = getApiErrorMessage(err) || 'Failed to save journal invoice.';
     } finally {
       this.isSubmitting = false;
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
     }
   }
 
@@ -202,6 +218,14 @@ export class InvoiceComponent {
     };
   }
 
+  private uuidValidator(): ValidatorFn {
+    return (control: AbstractControl): ValidationErrors | null => {
+      const value = String(control.value ?? '').trim();
+      if (!value) return null;
+      return UUID_REGEX.test(value) ? null : { uuid: true };
+    };
+  }
+
   // ── Toast ───────────────────────────────────────────────────────────────────
 
   showToast(message: string, isError: boolean): void {
@@ -211,7 +235,7 @@ export class InvoiceComponent {
     this.toastVisible = true;
     this.toastTimer = setTimeout(() => {
       this.toastVisible = false;
-      this.cdr.detectChanges();
+      this.cdr.markForCheck();
     }, 4500);
   }
 
